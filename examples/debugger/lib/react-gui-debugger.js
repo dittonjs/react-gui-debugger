@@ -4,13 +4,20 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 
+var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
-exports.default = function (options) {
-  var _ref = options ? options : {};
+exports.default = function (defaults) {
+  if (!COMPONENT_SETUP) {
+    COMPONENT_SETUP = true;
+  } else {
+    throw "Found more that one instance of react-gui-debugger. Only one class can use react-gui-debugger at a time.";
+  }
+
+  var _ref = defaults ? defaults : {};
 
   var ignore = _ref.ignore;
-  var focus = _ref.focus;
   var matchProp = _ref.matchProp;
 
   return function (element) {
@@ -20,7 +27,7 @@ exports.default = function (options) {
     });
 
     _lodash2.default.each(originalMethods, function (method) {
-      if (typeof method.val == "function" && !_lodash2.default.contains(["render", "constructor", "getState"], method.name)) {
+      if (typeof method.val == "function" && !_lodash2.default.contains(["render", "constructor"], method.name)) {
         element.prototype[method.name] = function () {
           var origMethod = method.val.bind(this);
 
@@ -30,34 +37,26 @@ exports.default = function (options) {
           });
 
           var result = origMethod.apply(undefined, arguments);
-          if (ignore && ignore.length && _lodash2.default.contains(ignore, method.name)) {
-            return result;
-          }
-          if (focus && focus.length && !_lodash2.default.contains(focus, method.name)) {
-            return result;
-          }
-          if (matchProp && matchProp.length && this.props[matchProp[0]] != matchProp[1]) {
-            return result;
-          }
-          if (!_lodash2.default.contains(this.methodsToDisplay, method.name)) {
-            return result;
-          }
-          if (!this.debugActions) this.debugActions = [];
 
-          this.debugActions.push({ name: method.name, arguments: arguments, result: result });
-          if (this.tools != null) {
+          DEBUG_ACTIONS.push({ name: method.name, arguments: arguments, result: result, props: this.props, state: this.state });
+          if (this.tools != null && !_lodash2.default.contains(["componentWillUpdate", "componentDidUpdate", "componentWillRecieveProps", "shouldComponentUpdate"], method.name)) {
             // trigger reload if we are not in the render cycle
             this.setState({});
+          }
+          if (LOADED_COMPONENT) {
+            if (LOADED_KEY != this.loaded_key) {
+              NEEDS_UPDATE = true;
+            }
           }
           return result;
         };
       }
+
       if (typeof method.val == "function" && method.name == "render") {
         element.prototype.render = function () {
           var _this3 = this;
 
           if (!this.methodsToDisplay) {
-            console.log(originalMethods);
             this.methodsToDisplay = _lodash2.default.map(originalMethods, function (originalMethod) {
               return originalMethod.name;
             });
@@ -68,6 +67,19 @@ exports.default = function (options) {
           }
 
           var origMethod = method.val.bind(this);
+          if (!LOADED_KEY) {
+            this.loaded_key = "me";
+            LOADED_KEY = "me";
+            LOADED_COMPONENT = this;
+          }
+          if (this.loaded_key != LOADED_KEY) {
+            if (!this.updateKey) {
+              this.updateKey = "key" + ITERATIONS;
+              ITERATIONS++;
+            }
+            UPDATEABLES[this.updateKey] = this;
+            return origMethod();
+          }
           return _react2.default.createElement(
             "span",
             null,
@@ -76,29 +88,21 @@ exports.default = function (options) {
               null,
               origMethod()
             ),
-            _react2.default.createElement(DevTools, {
+            _react2.default.createElement(DevTools, _extends({
               ref: function ref(_ref2) {
                 _this3.tools = _ref2;
               },
-              devtoolsVisible: this.state.devtoolsVisible,
-              toggleDevTools: function toggleDevTools() {
-                _this3.setState({ devtoolsVisible: !_this3.state.devtoolsVisible });
-              },
               clearActions: function clearActions() {
-                _this3.debugActions = [];_this3.setState({});
+                DEBUG_ACTIONS = [];_this3.setState({});_lodash2.default.each(UPDATEABLES, function (u) {
+                  return u.setState({});
+                });
               },
-              debugActions: this.debugActions,
-              addMethod: function addMethod(methodName) {
-                _this3.methodsToDisplay.push(methodName);_this3.setState({});
-              },
-              methodsToDisplay: this.methodsToDisplay,
               allMethods: _lodash2.default.map(originalMethods, function (originalMethod) {
                 return originalMethod.name;
               }),
-              removeMethod: function removeMethod(methodName) {
-                _lodash2.default.remove(_this3.methodsToDisplay, methodName);_this3.setState({});
-              }
-            })
+              defaultIgnore: ignore,
+              defaultMatch: matchProp
+            }, this.props, this.state))
           );
         };
       }
@@ -114,6 +118,10 @@ var _lodash = require("lodash");
 
 var _lodash2 = _interopRequireDefault(_lodash);
 
+var _reactJsonTree = require("react-json-tree");
+
+var _reactJsonTree2 = _interopRequireDefault(_reactJsonTree);
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -122,20 +130,44 @@ function _possibleConstructorReturn(self, call) { if (!self) { throw new Referen
 
 function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
+var LOADED_KEY = "";
+var COMPONENT_SETUP = false;
+var DEBUG_ACTIONS = [];
+var UPDATEABLES = {};
+var ITERATIONS = 0;
+var LOADED_COMPONENT = null;
+var NEEDS_UPDATE = false;
+
 var DevTools = function (_React$Component) {
   _inherits(DevTools, _React$Component);
 
-  function DevTools() {
+  function DevTools(props) {
     _classCallCheck(this, DevTools);
 
     var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(DevTools).call(this));
 
     _this.state = {};
     _this.state.methodList = true;
+    _this.state.matchKey = "";
+    _this.state.matchValue = "";
+    _this.state.activeMethods = _lodash2.default.filter(props.allMethods, function (method) {
+      return !_lodash2.default.contains(props.defaultIgnore, method);
+    });
+    _this.allMethods = _lodash2.default.filter(props.allMethods, function (method) {
+      return !_lodash2.default.contains(["constructor", "render"], method);
+    });
     return _this;
   }
 
   _createClass(DevTools, [{
+    key: "componentDidUpdate",
+    value: function componentDidUpdate() {
+      if (NEEDS_UPDATE) {
+        NEEDS_UPDATE = false;
+        this.setState({});
+      }
+    }
+  }, {
     key: "render",
     value: function render() {
       var _this2 = this;
@@ -147,7 +179,7 @@ var DevTools = function (_React$Component) {
           position: "fixed",
           top: "0px",
           bottom: "0px",
-          right: this.props.devtoolsVisible ? "0px" : "-360px",
+          right: this.state.devtoolsVisible ? "0px" : "-360px",
           boxShadow: "1px 1px 1px 1px grey",
           backgroundColor: "white",
           zIndex: "100",
@@ -174,7 +206,14 @@ var DevTools = function (_React$Component) {
         },
         methodList: {}
       };
-      console.log(this.props.allMethods);
+
+      var filteredDebugActions = _lodash2.default.filter(DEBUG_ACTIONS, function (action) {
+        var matchedProps = true;
+        if (_this2.state.matchKey) {
+          matchedProps = _lodash2.default.get(action, _this2.state.matchKey) == _this2.state.matchValue;
+        }
+        return _lodash2.default.contains(_this2.state.activeMethods, action.name) && matchedProps;
+      });
       return _react2.default.createElement(
         "div",
         { style: styles.devTools },
@@ -184,9 +223,9 @@ var DevTools = function (_React$Component) {
           _react2.default.createElement(
             "span",
             { style: styles.openClose, onClick: function onClick() {
-                _this2.props.toggleDevTools();
+                _this2.setState({ devtoolsVisible: !_this2.state.devtoolsVisible });
               } },
-            this.props.devtoolsVisible ? "Close" : "Open"
+            this.state.devtoolsVisible ? "Close" : "Open"
           ),
           _react2.default.createElement(
             "span",
@@ -206,37 +245,53 @@ var DevTools = function (_React$Component) {
         _react2.default.createElement(
           "div",
           { style: styles.methodList },
-          _lodash2.default.map(this.props.allMethods, function (method) {
+          _lodash2.default.map(this.allMethods, function (method) {
             return _react2.default.createElement(
               "div",
               { key: method + "_list" },
               _react2.default.createElement("input", { type: "checkbox",
-                checked: _lodash2.default.contains(_this2.props.methodsToDisplay, method),
+                checked: _lodash2.default.contains(_this2.state.activeMethods, method),
                 onChange: function onChange(e) {
-                  console.log(e.target.checked);
-                  if (e.target.checked) {
-                    _this2.props.addMethod(method);
-                  } else {
-                    _this2.props.removeMethod(method);
+                  if (e.target.checked && !_lodash2.default.contains(_this2.state.activeMethods, method)) {
+                    var newMethodList = _lodash2.default.cloneDeep(_this2.state.activeMethods);
+                    newMethodList.push(method);
+                    _this2.setState({ activeMethods: newMethodList });
+                  } else if (!e.target.checked && _lodash2.default.contains(_this2.state.activeMethods, method)) {
+                    var newMethodList = _lodash2.default.cloneDeep(_this2.state.activeMethods);
+                    _lodash2.default.remove(newMethodList, function (oldMethod) {
+                      return method == oldMethod;
+                    });
+                    _this2.setState({ activeMethods: newMethodList });
                   }
-                } }),
+                }
+              }),
               method
             );
           })
         ),
-        _lodash2.default.map(this.props.debugActions, function (action, index) {
+        _react2.default.createElement(
+          "div",
+          null,
+          _react2.default.createElement(
+            "div",
+            null,
+            "Path",
+            _react2.default.createElement("input", { type: "text", onChange: function onChange(e) {
+                return _this2.setState({ matchKey: e.target.value });
+              } })
+          ),
+          _react2.default.createElement(
+            "div",
+            null,
+            "Value",
+            _react2.default.createElement("input", { type: "text", onChange: function onChange(e) {
+                return _this2.setState({ matchValue: e.target.value });
+              } })
+          )
+        ),
+        _lodash2.default.map(filteredDebugActions, function (action, index) {
           var calledString;
           var returnedString;
-          try {
-            calledString = JSON.stringify(action.arguments, null, 2);
-          } catch (e) {
-            calledString = "Circular Reference";
-          }
-          try {
-            returnedString = JSON.stringify(action.result, null, 2);
-          } catch (e) {
-            returnedString = "Circular Reference";
-          }
 
           return _react2.default.createElement(
             "div",
@@ -250,13 +305,13 @@ var DevTools = function (_React$Component) {
               "div",
               { style: { padding: "5px" } },
               "CALLED WITH: ",
-              calledString
+              _react2.default.createElement(_reactJsonTree2.default, { data: { arguments: action.arguments }, hideRoot: true })
             ),
             _react2.default.createElement(
               "div",
               { style: { padding: "5px" } },
               "RETURNED: ",
-              returnedString
+              _react2.default.createElement(_reactJsonTree2.default, { data: { result: action.result }, hideRoot: true })
             )
           );
         })

@@ -17,6 +17,7 @@
   "dependencies": {
     "lodash": "~3.10.1",
     "react": "^15.2.0",
-    "react-dom": "^15.2.0"
+    "react-dom": "^15.2.0",
+    "react-json-tree": "^0.8.0"
   }
 }

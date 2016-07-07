@@ -2,7 +2,8 @@
 
 import React                   from "react";
 import _                       from "lodash";
-import toString                from "lodash.tostring";
+import JSONTree                from "react-json-tree";
+
 
 export default function(options){
   var {ignore, focus, matchProp} = options ? options : {};
@@ -84,22 +85,22 @@ export default function(options){
                     var calledString;
                     var returnedString;
 
-                    try {
-                      calledString = JSON.stringify(action.arguments, null, 2);
-                    } catch(e){
-                      calledString = "Circular Reference";
-                    }
-                    try{
-                      returnedString = JSON.stringify(action.arguments, null, 2);
-                    } catch(e){
-                      returnedString = "Circular Reference";
-                    }
+                    // try {
+                    //   calledString = JSON.stringify(action.arguments, null, 2);
+                    // } catch(e){
+                    //   calledString = "Circular Reference";
+                    // }
+                    // try{
+                    //   returnedString = JSON.stringify(action.arguments, null, 2);
+                    // } catch(e){
+                    //   returnedString = "Circular Reference";
+                    // }
 
                     return (
                       <div style={styles.action}>
                         <h3>{action.name}</h3>
-                        <div style={{padding: "5px"}}>CALLED WITH: {calledString}</div>
-                        <div style={{padding: "5px"}}>RETURNED: {returnedString}</div>
+                        <div style={{padding: "5px"}}>CALLED WITH: <JSONTree json={action.arguments}></div>
+                        <div style={{padding: "5px"}}>RETURNED: <JSONTree json={action.result}></div>
                       </div>
                     )
                   })

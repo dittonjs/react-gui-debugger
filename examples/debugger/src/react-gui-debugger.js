@@ -2,13 +2,31 @@
 
 import React                   from "react";
 import _                       from "lodash";
+import JSONTree                from "react-json-tree";
 
+var LOADED_KEY = "";
+var COMPONENT_SETUP = false;
+var DEBUG_ACTIONS  = [];
+var UPDATEABLES    = {};
+var ITERATIONS = 0;
+var LOADED_COMPONENT = null;
+var NEEDS_UPDATE = false;
 
 class DevTools extends React.Component {
-  constructor(){
+  constructor(props){
     super();
     this.state = {};
     this.state.methodList = true;
+    this.state.matchKey = "";
+    this.state.matchValue = "";
+    this.state.activeMethods = _.filter(props.allMethods, (method)=>(!_.contains(props.defaultIgnore, method)));
+    this.allMethods = _.filter(props.allMethods, (method)=>(!_.contains(["constructor", "render"], method)));
+  }
+  componentDidUpdate(){
+    if(NEEDS_UPDATE){
+      NEEDS_UPDATE = false;
+      this.setState({});
+    }
   }
   render(){
     var styles = {
@@ -18,7 +36,7 @@ class DevTools extends React.Component {
         position: "fixed",
         top: "0px",
         bottom: "0px",
-        right: this.props.devtoolsVisible ? "0px" : "-360px",
+        right: this.state.devtoolsVisible ? "0px" : "-360px",
         boxShadow: "1px 1px 1px 1px grey",
         backgroundColor: "white",
         zIndex: "100",
@@ -47,54 +65,59 @@ class DevTools extends React.Component {
 
       }
     }
-    console.log(this.props.allMethods);
+
+    var filteredDebugActions = _.filter(DEBUG_ACTIONS,(action)=>{
+      var matchedProps = true;
+      if(this.state.matchKey){
+        matchedProps = _.get(action, this.state.matchKey) == this.state.matchValue;
+      }
+      return _.contains(this.state.activeMethods, action.name) && matchedProps;
+    })
     return (
       <div style={styles.devTools}>
         <div style={styles.topTools}>
-          <span style={styles.openClose} onClick={()=>{this.props.toggleDevTools()}}>{this.props.devtoolsVisible ? "Close" : "Open"}</span>
+          <span style={styles.openClose} onClick={()=>{this.setState({devtoolsVisible: !this.state.devtoolsVisible})}}>{this.state.devtoolsVisible ? "Close" : "Open"}</span>
           <span style={styles.openClose} onClick={()=>{this.props.clearActions();}}>Rerender</span>
           <div style={styles.openClose}  onClick={()=>{this.setState({methodList: !this.state.methodList})}}>{this.state.methodList ? "Hide method list:" : "Show method list"}</div>
         </div>
         <div style={styles.methodList}>
           {
-            _.map(this.props.allMethods, (method)=>{
+            _.map(this.allMethods, (method)=>{
               return (
                 <div key={method+"_list"}>
                   <input type="checkbox"
-                    checked={_.contains(this.props.methodsToDisplay, method)}
+                    checked={_.contains(this.state.activeMethods, method)}
                     onChange={ (e)=>{
-                      console.log(e.target.checked);
-                      if(e.target.checked){
-                        this.props.addMethod(method)
-                      } else {
-                        this.props.removeMethod(method)
+                      if(e.target.checked && !_.contains(this.state.activeMethods, method)){
+                        var newMethodList = _.cloneDeep(this.state.activeMethods);
+                        newMethodList.push(method);
+                        this.setState({activeMethods: newMethodList});
+                      } else if(!e.target.checked && _.contains(this.state.activeMethods, method)) {
+                        var newMethodList = _.cloneDeep(this.state.activeMethods);
+                        _.remove(newMethodList, (oldMethod)=>(method==oldMethod));
+                        this.setState({activeMethods: newMethodList});
                       }
-                    }}/>{method}
+                    }}
+                  />{method}
                 </div>
               )
             })
           }
         </div>
+        <div>
+          <div>Path<input type="text" onChange={(e)=>this.setState({matchKey: e.target.value})} /></div>
+          <div>Value<input type="text" onChange={(e)=>this.setState({matchValue: e.target.value})} /></div>
+        </div>
         {
-          _.map(this.props.debugActions, (action, index)=>{
+          _.map(filteredDebugActions, (action, index)=>{
             var calledString;
             var returnedString;
-            try {
-              calledString = JSON.stringify(action.arguments, null, 2);
-            } catch(e){
-              calledString = "Circular Reference";
-            }
-            try{
-              returnedString = JSON.stringify(action.result, null, 2);
-            } catch(e){
-              returnedString = "Circular Reference";
-            }
 
             return (
               <div key={`${action.name}_${index}`} style={styles.action}>
                 <h3>{action.name}</h3>
-                <div style={{padding: "5px"}}>CALLED WITH: {calledString}</div>
-                <div style={{padding: "5px"}}>RETURNED: {returnedString}</div>
+                <div style={{padding: "5px"}}>CALLED WITH: <JSONTree data={{arguments: action.arguments}} hideRoot/></div>
+                <div style={{padding: "5px"}}>RETURNED: <JSONTree data={{result:action.result}} hideRoot/></div>
               </div>
             )
           })
@@ -104,8 +127,13 @@ class DevTools extends React.Component {
   }
 }
 
-export default function(options){
-  var {ignore, focus, matchProp} = options ? options : {};
+export default function(defaults){
+  if(!COMPONENT_SETUP){
+    COMPONENT_SETUP = true;
+  } else {
+    throw "Found more that one instance of react-gui-debugger. Only one class can use react-gui-debugger at a time.";
+  }
+  var {ignore, matchProp} = defaults ? defaults : {};
   return function(element){
 
     var originalMethods = _.map(Object.getOwnPropertyNames(element.prototype), function(key){
@@ -113,7 +141,7 @@ export default function(options){
     });
 
     _.each(originalMethods, function(method){
-      if(typeof method.val == "function" && !_.contains(["render", "constructor", "getState"], method.name)){
+      if(typeof method.val == "function" && !_.contains(["render", "constructor"], method.name)){
         element.prototype[method.name] = function(){
           var origMethod = method.val.bind(this);
 
@@ -121,32 +149,25 @@ export default function(options){
           _.each(arguments, (arg)=>{if(arg.persist) arg.persist()});
 
           var result = origMethod(...arguments);
-          if(ignore && ignore.length && _.contains(ignore, method.name)){
-            return result;
-          }
-          if(focus && focus.length && !_.contains(focus, method.name)){
-            return result;
-          }
-          if(matchProp && matchProp.length && this.props[matchProp[0]] != matchProp[1]){
-            return result;
-          }
-          if(!_.contains(this.methodsToDisplay, method.name)){
-            return result;
-          }
-          if(!this.debugActions) this.debugActions = [];
 
-          this.debugActions.push({name: method.name, arguments, result});
-          if(this.tools != null){
+
+          DEBUG_ACTIONS.push({name: method.name, arguments, result, props: this.props, state: this.state});
+          if(this.tools != null && !_.contains(["componentWillUpdate", "componentDidUpdate", "componentWillRecieveProps", "shouldComponentUpdate"], method.name)){
             // trigger reload if we are not in the render cycle
             this.setState({});
+          }
+          if(LOADED_COMPONENT){
+            if(LOADED_KEY != this.loaded_key){
+              NEEDS_UPDATE = true;
+            }
           }
           return result;
         }
       }
+
       if(typeof method.val == "function" && method.name == "render"){
         element.prototype.render = function(){
           if(!this.methodsToDisplay){
-            console.log(originalMethods);
             this.methodsToDisplay = _.map(originalMethods,(originalMethod)=>(originalMethod.name));
           }
           this.tools = null;
@@ -155,19 +176,30 @@ export default function(options){
           }
 
           var origMethod = method.val.bind(this);
+          if(!LOADED_KEY){
+            this.loaded_key = "me";
+            LOADED_KEY      = "me";
+            LOADED_COMPONENT = this;
+          }
+          if(this.loaded_key != LOADED_KEY) {
+            if(!this.updateKey){
+              this.updateKey = "key"+ITERATIONS;
+              ITERATIONS++;
+            }
+            UPDATEABLES[this.updateKey] = this;
+            return origMethod();
+          }
           return (
             <span>
               <span>{origMethod()}</span>
               <DevTools
                 ref              = {(ref)=>{this.tools = ref}}
-                devtoolsVisible  = {this.state.devtoolsVisible}
-                toggleDevTools   = {()=>{this.setState({devtoolsVisible: !this.state.devtoolsVisible})}}
-                clearActions     = {()=>{this.debugActions = []; this.setState({});}}
-                debugActions     = {this.debugActions}
-                addMethod        = {(methodName)=>{this.methodsToDisplay.push(methodName); this.setState({})}}
-                methodsToDisplay = {this.methodsToDisplay}
+                clearActions     = {()=>{DEBUG_ACTIONS = []; this.setState({}); _.each(UPDATEABLES, (u)=>u.setState({}))}}
                 allMethods       = {_.map(originalMethods,(originalMethod)=>(originalMethod.name))}
-                removeMethod     = {(methodName)=>{_.remove(this.methodsToDisplay, methodName); this.setState({})}}
+                defaultIgnore    = {ignore}
+                defaultMatch     = {matchProp}
+                {...this.props}
+                {...this.state}
               />
             </span>
           );
