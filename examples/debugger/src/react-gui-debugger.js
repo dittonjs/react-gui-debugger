@@ -4,6 +4,12 @@ import React                   from "react";
 import _                       from "lodash";
 import JSONTree                from "react-json-tree";
 
+//===========================================
+// GLOBALS
+// keeps track of number of rendered components and their
+// output, maintains singleton
+//===========================================
+
 var LOADED_KEY = "";
 var COMPONENT_SETUP = false;
 var DEBUG_ACTIONS  = [];
@@ -12,7 +18,33 @@ var ITERATIONS = 0;
 var LOADED_COMPONENT = null;
 var NEEDS_UPDATE = false;
 
+const THEME = {
+  scheme: 'monokai',
+  author: 'wimer hazenberg (http://www.monokai.nl)',
+  base00: '#272822',
+  base01: '#383830',
+  base02: '#49483e',
+  base03: '#75715e',
+  base04: '#a59f85',
+  base05: '#f8f8f2',
+  base06: '#f5f4f1',
+  base07: '#f9f8f5',
+  base08: '#f92672',
+  base09: '#fd971f',
+  base0A: '#f4bf75',
+  base0B: '#a6e22e',
+  base0C: '#a1efe4',
+  base0D: '#66d9ef',
+  base0E: '#ae81ff',
+  base0F: '#cc6633'
+};
+
+//===========================================
+// The main dev tool class
+//===========================================
+
 class DevTools extends React.Component {
+
   constructor(props){
     super();
     this.state = {};
@@ -22,12 +54,14 @@ class DevTools extends React.Component {
     this.state.activeMethods = _.filter(props.allMethods, (method)=>(!_.contains(props.defaultIgnore, method)));
     this.allMethods = _.filter(props.allMethods, (method)=>(!_.contains(["constructor", "render"], method)));
   }
+
   componentDidUpdate(){
     if(NEEDS_UPDATE){
       NEEDS_UPDATE = false;
       this.setState({});
     }
   }
+
   render(){
     var styles = {
       devTools: {
@@ -38,8 +72,9 @@ class DevTools extends React.Component {
         bottom: "0px",
         right: this.state.devtoolsVisible ? "0px" : "-360px",
         boxShadow: "1px 1px 1px 1px grey",
-        backgroundColor: "white",
+        backgroundColor: "rgb(43,48,59)",
         zIndex: "100",
+        color: "white",
         overflow: "auto"
       },
       action: {
@@ -62,7 +97,7 @@ class DevTools extends React.Component {
         padding: "5px"
       },
       methodList: {
-
+        display: this.state.methodList ? "" : "none"
       }
     }
 
@@ -116,8 +151,8 @@ class DevTools extends React.Component {
             return (
               <div key={`${action.name}_${index}`} style={styles.action}>
                 <h3>{action.name}</h3>
-                <div style={{padding: "5px"}}>CALLED WITH: <JSONTree data={{arguments: action.arguments}} hideRoot/></div>
-                <div style={{padding: "5px"}}>RETURNED: <JSONTree data={{result:action.result}} hideRoot/></div>
+                <div style={{padding: "5px"}}>CALLED WITH: <JSONTree theme={THEME} isLightTheme={false} data={{arguments: action.arguments}} hideRoot/></div>
+                <div style={{padding: "5px"}}>RETURNED: <JSONTree theme={THEME} isLightTheme={false} data={{result:action.result}} hideRoot/></div>
               </div>
             )
           })
@@ -127,6 +162,10 @@ class DevTools extends React.Component {
   }
 }
 
+
+//======================================================
+// The debugger decorator
+//======================================================
 export default function(defaults){
   if(!COMPONENT_SETUP){
     COMPONENT_SETUP = true;

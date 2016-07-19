@@ -70,7 +70,7 @@
 
 	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
-	var AnIteratedComponent = (_dec = (0, _reactGuiDebugger2.default)({ ignore: ["onButton"] }), _dec(_class = function (_React$Component) {
+	var AnIteratedComponent = (_dec = (0, _reactGuiDebugger2.default)(), _dec(_class = function (_React$Component) {
 	  _inherits(AnIteratedComponent, _React$Component);
 
 	  function AnIteratedComponent() {
@@ -21228,6 +21228,12 @@
 
 	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
+	//===========================================
+	// GLOBALS
+	// keeps track of number of rendered components and their
+	// output, maintains singleton
+	//===========================================
+
 	var LOADED_KEY = "";
 	var COMPONENT_SETUP = false;
 	var DEBUG_ACTIONS = [];
@@ -21235,6 +21241,31 @@
 	var ITERATIONS = 0;
 	var LOADED_COMPONENT = null;
 	var NEEDS_UPDATE = false;
+
+	var THEME = {
+	  scheme: 'monokai',
+	  author: 'wimer hazenberg (http://www.monokai.nl)',
+	  base00: '#272822',
+	  base01: '#383830',
+	  base02: '#49483e',
+	  base03: '#75715e',
+	  base04: '#a59f85',
+	  base05: '#f8f8f2',
+	  base06: '#f5f4f1',
+	  base07: '#f9f8f5',
+	  base08: '#f92672',
+	  base09: '#fd971f',
+	  base0A: '#f4bf75',
+	  base0B: '#a6e22e',
+	  base0C: '#a1efe4',
+	  base0D: '#66d9ef',
+	  base0E: '#ae81ff',
+	  base0F: '#cc6633'
+	};
+
+	//===========================================
+	// The main dev tool class
+	//===========================================
 
 	var DevTools = function (_React$Component) {
 	  _inherits(DevTools, _React$Component);
@@ -21279,8 +21310,9 @@
 	          bottom: "0px",
 	          right: this.state.devtoolsVisible ? "0px" : "-360px",
 	          boxShadow: "1px 1px 1px 1px grey",
-	          backgroundColor: "white",
+	          backgroundColor: "rgb(43,48,59)",
 	          zIndex: "100",
+	          color: "white",
 	          overflow: "auto"
 	        },
 	        action: {
@@ -21302,7 +21334,9 @@
 	          width: "100%",
 	          padding: "5px"
 	        },
-	        methodList: {}
+	        methodList: {
+	          display: this.state.methodList ? "" : "none"
+	        }
 	      };
 
 	      var filteredDebugActions = _lodash2.default.filter(DEBUG_ACTIONS, function (action) {
@@ -21403,13 +21437,13 @@
 	              "div",
 	              { style: { padding: "5px" } },
 	              "CALLED WITH: ",
-	              _react2.default.createElement(_reactJsonTree2.default, { data: { arguments: action.arguments }, hideRoot: true })
+	              _react2.default.createElement(_reactJsonTree2.default, { theme: THEME, isLightTheme: false, data: { arguments: action.arguments }, hideRoot: true })
 	            ),
 	            _react2.default.createElement(
 	              "div",
 	              { style: { padding: "5px" } },
 	              "RETURNED: ",
-	              _react2.default.createElement(_reactJsonTree2.default, { data: { result: action.result }, hideRoot: true })
+	              _react2.default.createElement(_reactJsonTree2.default, { theme: THEME, isLightTheme: false, data: { result: action.result }, hideRoot: true })
 	            )
 	          );
 	        })
@@ -21419,6 +21453,10 @@
 
 	  return DevTools;
 	}(_react2.default.Component);
+
+	//======================================================
+	// The debugger decorator
+	//======================================================
 
 /***/ },
 /* 171 */

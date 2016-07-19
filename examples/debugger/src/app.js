@@ -2,7 +2,7 @@ import React              from "react";
 import ReactDOM           from "react-dom";
 import ReactGuiDebugger   from "./react-gui-debugger";
 
-@ReactGuiDebugger({ignore: ["onButton"]})
+@ReactGuiDebugger()
 class AnIteratedComponent extends React.Component {
   plus100(someInt){
     return someInt + 100;
